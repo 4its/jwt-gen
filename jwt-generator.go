@@ -73,6 +73,7 @@ func printUsage() {
 	fmt.Println("Examples:")
 	fmt.Println("  jwt-gen generate -claim source=app,user_id=123")
 	fmt.Println("  jwt-gen decode <token>")
+	fmt.Println("  jwt-gen decode -f <file>")
 	fmt.Println("  jwt-gen verify <token> -pubkey public_key.pem")
 }
 
@@ -133,13 +134,24 @@ func generateCommand(args []string) {
 
 func decodeCommand(args []string) {
 	fs := flag.NewFlagSet("decode", flag.ExitOnError)
+	tokenPath := fs.String("file", "", "Path to token file (if not provided, token is read from stdin)")
 	fs.Parse(args)
 
-	if fs.NArg() < 1 {
-		log.Fatal("Error: token is required\nUsage: jwt-gen decode <token>")
-	}
+	var tokenString string
 
-	tokenString := fs.Arg(0)
+	if *tokenPath != "" {
+		tokenFile := resolveKeyPath(*tokenPath)
+		tokenKey, err := loadTokenFromFile(tokenFile)
+		if err != nil {
+			log.Fatalf("Error loading token from file: %v", err)
+		}
+		tokenString = tokenKey
+	} else {
+		if fs.NArg() < 1 {
+			log.Fatal("Error: token is required\nUsage: jwt-gen decode <token> or jwt-gen decode -file <file>")
+		}
+		tokenString = fs.Arg(0)
+	}
 
 	// Parse token without verification
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
@@ -316,4 +328,12 @@ func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	}
 
 	return publicKey, nil
+}
+
+func loadTokenFromFile(path string) (string, error) {
+	tokenData, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read token from file: %w", err)
+	}
+	return string(tokenData), nil
 }
