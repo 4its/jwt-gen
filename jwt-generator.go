@@ -41,19 +41,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	var err error
 	switch os.Args[1] {
 	case "generate":
-		generateCommand(os.Args[2:])
+		err = generateCommand(os.Args[2:])
 	case "decode":
-		decodeCommand(os.Args[2:])
+		err = decodeCommand(os.Args[2:])
 	case "verify":
-		verifyCommand(os.Args[2:])
+		err = verifyCommand(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
 		fmt.Printf("Unknown command: %s\n\n", os.Args[1])
 		printUsage()
 		os.Exit(1)
+	}
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -76,21 +80,23 @@ func printUsage() {
 	fmt.Println("  jwt-gen verify <token> -pubkey public_key.pem")
 }
 
-func generateCommand(args []string) {
-	fs := flag.NewFlagSet("generate", flag.ExitOnError)
+func generateCommand(args []string) error {
+	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
 	var claims claimsList
 	keyPath := fs.String("key", "private_key.pem", "Path to private key file")
 	expiration := fs.Int("exp", 2592000, "Token expiration time in seconds")
 	fs.Var(&claims, "claim", "Claim in format key=value (can be specified multiple times)")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if len(claims) == 0 {
-		log.Fatal("Error: at least one -claim parameter is required")
+		return fmt.Errorf("at least one -claim parameter is required")
 	}
 
 	privateKey, err := loadPrivateKey(*keyPath)
 	if err != nil {
-		log.Fatalf("Error loading private key: %v", err)
+		return fmt.Errorf("error loading private key: %w", err)
 	}
 
 	claimsMap := jwt.MapClaims{
@@ -102,12 +108,12 @@ func generateCommand(args []string) {
 	for _, claim := range claims {
 		parts := strings.SplitN(claim, "=", 2)
 		if len(parts) != 2 {
-			log.Fatalf("Invalid claim format: %s (expected key=value)", claim)
+			return fmt.Errorf("invalid claim format: %s (expected key=value)", claim)
 		}
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		if key == "" {
-			log.Fatalf("Empty key in claim: %s", claim)
+			return fmt.Errorf("empty key in claim: %s", claim)
 		}
 		claimsMap[key] = value
 	}
@@ -116,16 +122,19 @@ func generateCommand(args []string) {
 
 	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
-		log.Fatalf("Error signing token: %v", err)
+		return fmt.Errorf("error signing token: %w", err)
 	}
 
 	fmt.Println(tokenString)
+	return nil
 }
 
-func decodeCommand(args []string) {
-	fs := flag.NewFlagSet("decode", flag.ExitOnError)
+func decodeCommand(args []string) error {
+	fs := flag.NewFlagSet("decode", flag.ContinueOnError)
 	tokenPath := fs.String("file", "", "Path to token file (if not provided, token is read from stdin)")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	var tokenString string
 
@@ -133,49 +142,43 @@ func decodeCommand(args []string) {
 		var err error
 		tokenString, err = loadTokenFromFile(*tokenPath)
 		if err != nil {
-			log.Fatalf("Error loading token from file: %v", err)
+			return fmt.Errorf("error loading token from file: %w", err)
 		}
 	} else {
 		if fs.NArg() < 1 {
-			log.Fatal("Error: token is required\nUsage: jwt-gen decode <token> or jwt-gen decode -file <file>")
+			return fmt.Errorf("token is required\nUsage: jwt-gen decode <token> or jwt-gen decode -file <file>")
 		}
 		tokenString = fs.Arg(0)
 	}
 
-	// Parse token without verification
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
 	if err != nil {
-		log.Fatalf("Error parsing token: %v", err)
+		return fmt.Errorf("error parsing token: %w", err)
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		log.Fatal("Error: failed to parse claims")
-	}
-
-	printClaims(claims)
+	printClaims(token.Claims.(jwt.MapClaims))
+	return nil
 }
 
-func verifyCommand(args []string) {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+func verifyCommand(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	pubKeyPath := fs.String("pubkey", "public_key.pem", "Path to public key file")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if fs.NArg() < 1 {
-		log.Fatal("Error: token is required\nUsage: jwt-gen verify <token> -pubkey public_key.pem")
+		return fmt.Errorf("token is required\nUsage: jwt-gen verify <token> -pubkey public_key.pem")
 	}
 
 	tokenString := fs.Arg(0)
 
-	// Load public key
 	publicKey, err := loadPublicKey(*pubKeyPath)
 	if err != nil {
-		log.Fatalf("Error loading public key: %v", err)
+		return fmt.Errorf("error loading public key: %w", err)
 	}
 
-	// Parse and verify token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Verify signing method
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -183,21 +186,13 @@ func verifyCommand(args []string) {
 	})
 
 	if err != nil {
-		log.Fatalf("Error verifying token: %v", err)
-	}
-
-	if !token.Valid {
-		log.Fatal("Token is invalid")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		log.Fatal("Error: failed to parse claims")
+		return fmt.Errorf("error verifying token: %w", err)
 	}
 
 	fmt.Println("✓ Token signature is valid")
 	fmt.Println()
-	printClaims(claims)
+	printClaims(token.Claims.(jwt.MapClaims))
+	return nil
 }
 
 func printClaims(claims jwt.MapClaims) {
@@ -219,11 +214,7 @@ func printClaims(claims jwt.MapClaims) {
 		}
 	}
 
-	jsonBytes, err := json.MarshalIndent(displayClaims, "", "  ")
-	if err != nil {
-		log.Fatalf("Error formatting claims: %v", err)
-	}
-
+	jsonBytes, _ := json.MarshalIndent(displayClaims, "", "  ")
 	fmt.Println(string(jsonBytes))
 }
 
