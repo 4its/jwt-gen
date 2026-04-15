@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -73,7 +72,7 @@ func printUsage() {
 	fmt.Println("Examples:")
 	fmt.Println("  jwt-gen generate -claim source=app,user_id=123")
 	fmt.Println("  jwt-gen decode <token>")
-	fmt.Println("  jwt-gen decode -f <file>")
+	fmt.Println("  jwt-gen decode -file <file>")
 	fmt.Println("  jwt-gen verify <token> -pubkey public_key.pem")
 }
 
@@ -85,21 +84,15 @@ func generateCommand(args []string) {
 	fs.Var(&claims, "claim", "Claim in format key=value (can be specified multiple times)")
 	fs.Parse(args)
 
-	// Check that at least one claim is provided
 	if len(claims) == 0 {
 		log.Fatal("Error: at least one -claim parameter is required")
 	}
 
-	// If path is relative, look for the file next to the executable
-	keyFile := resolveKeyPath(*keyPath)
-
-	// Loading private key
-	privateKey, err := loadPrivateKey(keyFile)
+	privateKey, err := loadPrivateKey(*keyPath)
 	if err != nil {
 		log.Fatalf("Error loading private key: %v", err)
 	}
 
-	// Parsing claims from command line arguments
 	claimsMap := jwt.MapClaims{
 		"exp": time.Now().Add(time.Duration(*expiration) * time.Second).Unix(),
 		"iat": time.Now().Unix(),
@@ -119,16 +112,13 @@ func generateCommand(args []string) {
 		claimsMap[key] = value
 	}
 
-	// Creating token
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claimsMap)
 
-	// Signing token
 	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
 		log.Fatalf("Error signing token: %v", err)
 	}
 
-	// Showing result
 	fmt.Println(tokenString)
 }
 
@@ -140,12 +130,11 @@ func decodeCommand(args []string) {
 	var tokenString string
 
 	if *tokenPath != "" {
-		tokenFile := resolveKeyPath(*tokenPath)
-		tokenKey, err := loadTokenFromFile(tokenFile)
+		var err error
+		tokenString, err = loadTokenFromFile(*tokenPath)
 		if err != nil {
 			log.Fatalf("Error loading token from file: %v", err)
 		}
-		tokenString = tokenKey
 	} else {
 		if fs.NArg() < 1 {
 			log.Fatal("Error: token is required\nUsage: jwt-gen decode <token> or jwt-gen decode -file <file>")
@@ -164,32 +153,7 @@ func decodeCommand(args []string) {
 		log.Fatal("Error: failed to parse claims")
 	}
 
-	// Pretty print claims
-	fmt.Println("Token Claims:")
-	fmt.Println("=============")
-
-	// Convert timestamps to readable format
-	displayClaims := make(map[string]interface{})
-	for key, value := range claims {
-		switch key {
-		case "exp", "iat", "nbf":
-			if timestamp, ok := value.(float64); ok {
-				t := time.Unix(int64(timestamp), 0)
-				displayClaims[key] = fmt.Sprintf("%d (%s)", int64(timestamp), t.Format(time.RFC3339))
-			} else {
-				displayClaims[key] = value
-			}
-		default:
-			displayClaims[key] = value
-		}
-	}
-
-	jsonBytes, err := json.MarshalIndent(displayClaims, "", "  ")
-	if err != nil {
-		log.Fatalf("Error formatting claims: %v", err)
-	}
-
-	fmt.Println(string(jsonBytes))
+	printClaims(claims)
 }
 
 func verifyCommand(args []string) {
@@ -202,10 +166,9 @@ func verifyCommand(args []string) {
 	}
 
 	tokenString := fs.Arg(0)
-	keyFile := resolveKeyPath(*pubKeyPath)
 
 	// Load public key
-	publicKey, err := loadPublicKey(keyFile)
+	publicKey, err := loadPublicKey(*pubKeyPath)
 	if err != nil {
 		log.Fatalf("Error loading public key: %v", err)
 	}
@@ -234,10 +197,13 @@ func verifyCommand(args []string) {
 
 	fmt.Println("✓ Token signature is valid")
 	fmt.Println()
+	printClaims(claims)
+}
+
+func printClaims(claims jwt.MapClaims) {
 	fmt.Println("Token Claims:")
 	fmt.Println("=============")
 
-	// Convert timestamps to readable format
 	displayClaims := make(map[string]interface{})
 	for key, value := range claims {
 		switch key {
@@ -259,17 +225,6 @@ func verifyCommand(args []string) {
 	}
 
 	fmt.Println(string(jsonBytes))
-}
-
-func resolveKeyPath(keyPath string) string {
-	if !filepath.IsAbs(keyPath) {
-		execPath, err := os.Executable()
-		if err != nil {
-			log.Fatalf("Error getting executable path: %v", err)
-		}
-		return filepath.Join(filepath.Dir(execPath), keyPath)
-	}
-	return keyPath
 }
 
 func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
@@ -335,5 +290,5 @@ func loadTokenFromFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read token from file: %w", err)
 	}
-	return string(tokenData), nil
+	return strings.TrimSpace(string(tokenData)), nil
 }
