@@ -2,6 +2,10 @@
 
 Русская версия | [English](README.md)
 
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://golang.org)
+[![Release](https://github.com/4its/jwt-gen/actions/workflows/release.yml/badge.svg)](https://github.com/4its/jwt-gen/actions/workflows/release.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Полнофункциональный генератор и валидатор JWT токенов с подписью RSA. Генерация, декодирование и проверка токенов в одной утилите.
 
 ## Возможности
@@ -93,11 +97,11 @@ Token Claims:
 
 ```bash
 # Проверить токен
-./jwt-gen verify eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9... -pubkey public_key.pem
+./jwt-gen verify -pubkey public_key.pem eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # С переменной
 TOKEN=$(./jwt-gen generate -claim source=app)
-./jwt-gen verify "$TOKEN" -pubkey public_key.pem
+./jwt-gen verify -pubkey public_key.pem "$TOKEN"
 ```
 
 **Параметры verify:**
@@ -152,7 +156,7 @@ echo "Generated token: $TOKEN"
 ./jwt-gen decode "$TOKEN"
 
 # 4. Проверить подпись токена
-./jwt-gen verify "$TOKEN" -pubkey public_key.pem
+./jwt-gen verify -pubkey public_key.pem "$TOKEN"
 ```
 
 ## Особенности
@@ -164,7 +168,6 @@ echo "Generated token: $TOKEN"
 - **Гибкий формат claims**: можно указывать через запятую или отдельными флагами
 - **Читаемые временные метки**: при декодировании timestamps отображаются в удобном формате
 - **Проверка подписи**: полная валидация RSA подписи при использовании команды `verify`
-- **Относительные пути**: ключи можно указывать относительно директории программы
 
 ## Проверка токена онлайн
 

@@ -2,6 +2,10 @@
 
 [Русская версия](README.ru.md) | English
 
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://golang.org)
+[![Release](https://github.com/4its/jwt-gen/actions/workflows/release.yml/badge.svg)](https://github.com/4its/jwt-gen/actions/workflows/release.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A full-featured JWT token generator and validator with RSA signature. Generate, decode, and verify tokens in one utility.
 
 ## Features
@@ -93,11 +97,11 @@ Verify token signature using public key:
 
 ```bash
 # Verify token
-./jwt-gen verify eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9... -pubkey public_key.pem
+./jwt-gen verify -pubkey public_key.pem eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 # With variable
 TOKEN=$(./jwt-gen generate -claim source=app)
-./jwt-gen verify "$TOKEN" -pubkey public_key.pem
+./jwt-gen verify -pubkey public_key.pem "$TOKEN"
 ```
 
 **Verify Parameters:**
@@ -152,7 +156,7 @@ echo "Generated token: $TOKEN"
 ./jwt-gen decode "$TOKEN"
 
 # 4. Verify token signature
-./jwt-gen verify "$TOKEN" -pubkey public_key.pem
+./jwt-gen verify -pubkey public_key.pem "$TOKEN"
 ```
 
 ## Features
@@ -164,7 +168,6 @@ echo "Generated token: $TOKEN"
 - **Flexible claims format**: can be specified via comma or separate flags
 - **Readable timestamps**: timestamps are displayed in human-readable format when decoding
 - **Signature verification**: full RSA signature validation with `verify` command
-- **Relative paths**: keys can be specified relative to the program directory
 
 ## Verify Token Online
 
