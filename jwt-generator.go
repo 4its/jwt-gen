@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,19 +76,54 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  jwt-gen generate -claim source=app,user_id=123")
+	fmt.Println("  jwt-gen generate -exp 7d -claim source=app,user_id=123")
 	fmt.Println("  jwt-gen decode <token>")
 	fmt.Println("  jwt-gen decode -file <file>")
 	fmt.Println("  jwt-gen verify <token> -pubkey public_key.pem")
+}
+
+func parseDuration(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty duration string")
+	}
+	if _, err := strconv.ParseInt(s, 10, 64); err == nil {
+		secs, _ := strconv.ParseInt(s, 10, 64)
+		return time.Duration(secs) * time.Second, nil
+	}
+	unit := s[len(s)-1]
+	n, err := strconv.ParseInt(s[:len(s)-1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q: expected format like 30d, 5y, 3h, 90m, 60s or plain seconds", s)
+	}
+	switch unit {
+	case 'y':
+		return time.Duration(n) * 365 * 24 * time.Hour, nil
+	case 'd':
+		return time.Duration(n) * 24 * time.Hour, nil
+	case 'h':
+		return time.Duration(n) * time.Hour, nil
+	case 'm':
+		return time.Duration(n) * time.Minute, nil
+	case 's':
+		return time.Duration(n) * time.Second, nil
+	default:
+		return 0, fmt.Errorf("unknown duration unit %q: expected y, d, h, m, or s", string(unit))
+	}
 }
 
 func generateCommand(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
 	var claims claimsList
 	keyPath := fs.String("key", "private_key.pem", "Path to private key file")
-	expiration := fs.Int("exp", 2592000, "Token expiration time in seconds")
+	expiration := fs.String("exp", "30d", "Token expiration time (e.g. 30d, 5y, 3h, 90m) or plain seconds")
 	fs.Var(&claims, "claim", "Claim in format key=value (can be specified multiple times)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	dur, err := parseDuration(*expiration)
+	if err != nil {
+		return fmt.Errorf("invalid -exp value: %w", err)
 	}
 
 	if len(claims) == 0 {
@@ -100,7 +136,7 @@ func generateCommand(args []string) error {
 	}
 
 	claimsMap := jwt.MapClaims{
-		"exp": time.Now().Add(time.Duration(*expiration) * time.Second).Unix(),
+		"exp": time.Now().Add(dur).Unix(),
 		"iat": time.Now().Unix(),
 		"nbf": time.Now().Unix(),
 	}
