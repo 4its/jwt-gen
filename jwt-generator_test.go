@@ -79,6 +79,38 @@ func writeTempFile(t *testing.T, content string) string {
 	return f.Name()
 }
 
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{"30d", 30 * 24 * time.Hour, false},
+		{"5y", 5 * 365 * 24 * time.Hour, false},
+		{"3h", 3 * time.Hour, false},
+		{"90m", 90 * time.Minute, false},
+		{"60s", 60 * time.Second, false},
+		{"86400", 86400 * time.Second, false},
+		{"0d", 0, false},
+		{"", 0, true},
+		{"abc", 0, true},
+		{"10x", 0, true},
+		{"d", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseDuration(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseDuration(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("parseDuration(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestClaimsListSet(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -372,6 +404,26 @@ func TestGenerateCommand(t *testing.T) {
 		{
 			name:    "unknown flag",
 			args:    []string{"-unknown"},
+			wantErr: true,
+		},
+		{
+			name:    "exp as duration 7d",
+			args:    []string{"-key", testPrivKeyFile, "-claim", "user=alice", "-exp", "7d"},
+			wantErr: false,
+		},
+		{
+			name:    "exp as duration 1y",
+			args:    []string{"-key", testPrivKeyFile, "-claim", "user=alice", "-exp", "1y"},
+			wantErr: false,
+		},
+		{
+			name:    "exp as plain seconds",
+			args:    []string{"-key", testPrivKeyFile, "-claim", "user=alice", "-exp", "86400"},
+			wantErr: false,
+		},
+		{
+			name:    "exp invalid value",
+			args:    []string{"-key", testPrivKeyFile, "-claim", "user=alice", "-exp", "bad"},
 			wantErr: true,
 		},
 	}
