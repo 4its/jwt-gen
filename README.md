@@ -55,14 +55,16 @@ Create a JWT token with custom claims:
 # With custom key path
 ./jwt-gen generate -claim source=my-app -key /path/to/private_key.pem
 
-# Set token expiration time (in seconds)
-./jwt-gen generate -claim source=my-app -exp 7200
+# Set token expiration time
+./jwt-gen generate -claim source=my-app -exp 2h
+./jwt-gen generate -claim source=my-app -exp 7d
+./jwt-gen generate -claim source=my-app -exp 1y
 ```
 
 **Generate Parameters:**
 - `-claim key=value` (required, can be specified multiple times) - key=value pair to add to JWT claims. Multiple pairs can be specified via comma: `key1=val1,key2=val2`
 - `-key` (optional, default: `private_key.pem`) - path to RSA private key
-- `-exp` (optional, default: `2592000`) - token lifetime in seconds (default 30 days)
+- `-exp` (optional, default: `30d`) - token lifetime in human-readable format: `y` (years), `d` (days), `h` (hours), `m` (minutes), `s` (seconds), or plain seconds (e.g. `86400`)
 
 ### 2. Decode Token
 
@@ -149,7 +151,7 @@ openssl genrsa -out private_key.pem 2048
 openssl rsa -in private_key.pem -pubout -out public_key.pem
 
 # 2. Generate token
-TOKEN=$(./jwt-gen generate -claim source=my-app,user_id=12345,role=admin -exp 3600)
+TOKEN=$(./jwt-gen generate -claim source=my-app,user_id=12345,role=admin -exp 1h)
 echo "Generated token: $TOKEN"
 
 # 3. Decode token

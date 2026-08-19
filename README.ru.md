@@ -55,14 +55,16 @@ Commands:
 # С пользовательским путём к ключу
 ./jwt-gen generate -claim source=my-app -key /path/to/private_key.pem
 
-# Указание времени жизни токена (в секундах)
-./jwt-gen generate -claim source=my-app -exp 7200
+# Указание времени жизни токена
+./jwt-gen generate -claim source=my-app -exp 2h
+./jwt-gen generate -claim source=my-app -exp 7d
+./jwt-gen generate -claim source=my-app -exp 1y
 ```
 
 **Параметры generate:**
 - `-claim key=value` (обязательный, может указываться многократно) - пара ключ=значение для добавления в JWT claims. Можно указывать несколько пар через запятую: `key1=val1,key2=val2`
 - `-key` (опционально, по умолчанию: `private_key.pem`) - путь к приватному ключу RSA
-- `-exp` (опционально, по умолчанию: `2592000`) - время жизни токена в секундах (по умолчанию 30 дней)
+- `-exp` (опционально, по умолчанию: `30d`) - время жизни токена в удобочитаемом формате: `y` (годы), `d` (дни), `h` (часы), `m` (минуты), `s` (секунды), или просто число в секундах (например `86400`)
 
 ### 2. Декодирование токена (decode)
 
@@ -149,7 +151,7 @@ openssl genrsa -out private_key.pem 2048
 openssl rsa -in private_key.pem -pubout -out public_key.pem
 
 # 2. Сгенерировать токен
-TOKEN=$(./jwt-gen generate -claim source=my-app,user_id=12345,role=admin -exp 3600)
+TOKEN=$(./jwt-gen generate -claim source=my-app,user_id=12345,role=admin -exp 1h)
 echo "Generated token: $TOKEN"
 
 # 3. Декодировать токен
